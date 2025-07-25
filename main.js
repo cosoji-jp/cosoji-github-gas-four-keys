@@ -20,8 +20,8 @@ function initialize() {
       "マージ日時",
       "マージまでの時間(hours)",
       "リポジトリ",
-      "障害発生判定",
-      "障害対応PR",
+      "障害発生判定(ラベルベース)",
+      "障害対応PR(ラベルベース)",
     ]])
     .setBackgroundRGB(224, 224, 224);
 
@@ -44,8 +44,8 @@ function initialize() {
   settingsSheet.getRange(2, 4, 15, 2)
     .setValues([
       ["移動平均のウィンドウ幅(日)", "28"],
-      ["修復/巻き直しPRのブランチ名の検索ルール(正規表現)", "hotfix|revert"],
-      ["障害修復PRのブランチ名の検索ルール(正規表現)", "hotfix"],
+      ["ラベルベース障害検出", "app-bug/4K, bug/4K, hotfix/4K"],
+      ["ラベルベース開発系", "refactor/4K, chore/4K, 負荷軽減/速度改善/4K, 機能追加/4K, デザイン変更・追加/4K, 仕様変更/4K, 文言修正のみ/4K, タスク/4K"],
       ["デプロイ頻度のElite判定条件(1日あたり平均N回以上PRがマージされていればElite)", "0.4285714286"],
       ["デプロイ頻度のHigh判定条件(1日あたり平均N回以上PRがマージされていればHigh)", "0.1428571429"],
       ["デプロイ頻度のMedium判定条件(1日あたり平均N回以上PRがマージされていればMedium)", "0.03333333333"],
@@ -219,6 +219,15 @@ function getAllRepos() {
       if (pullRequest.mergedAt) {
         mergedAt = new Date(pullRequest.mergedAt);
       }
+      
+      const labels = pullRequest.labels.nodes.map(label => label.name);
+      const isBugRelated = labels.some(label => 
+        label.includes('app-bug/4K') || 
+        label.includes('bug/4K') || 
+        label.includes('hotfix/4K')
+      );
+      const isFailureRelated = isBugRelated;
+      
       const index = i + 2;
       sheet.getRange(index, 1).setValue(pullRequest.author.login);
       sheet.getRange(index, 2).setValue(pullRequest.headRefName);
@@ -231,8 +240,8 @@ function getAllRepos() {
         (mergedAt.getTime() - firstCommitDate.getTime()) / 60 / 60 / 1000 :
         "");
       sheet.getRange(index, 8).setValue(repositoryName);
-      sheet.getRange(index, 9).setValue(`=REGEXMATCH(B${index}, '分析設定'!$E$3)`);
-      sheet.getRange(index, 10).setValue(`=REGEXMATCH(B${index}, '分析設定'!$E$4)`);
+      sheet.getRange(index, 9).setValue(isFailureRelated);
+      sheet.getRange(index, 10).setValue(isBugRelated);
 
       i++;
     }
@@ -262,6 +271,11 @@ function getPullRequests(repositoryName) {
             bodyText
             merged
             mergedAt
+            labels(first: 20) {
+              nodes {
+                name
+              }
+            }
             commits (first: 1) {
               nodes {
                 commit {
